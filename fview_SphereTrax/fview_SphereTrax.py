@@ -11,6 +11,7 @@ import wx.xrc as xrc
 import numpy
 import numpy.numarray as nx
 import time
+import string
 import matplotlib
 import matplotlib.cm
 import matplotlib.collections
@@ -24,6 +25,7 @@ from scipy.optimize import fmin
 import socket  # for udp
 import struct
 import adskalman.adskalman as adskalman
+import sphere_finder
 
 RESFILE = pkg_resources.resource_filename(__name__,"fview_SphereTrax.xrc") # trigger extraction
 RES = xrc.EmptyXmlResource()
@@ -51,6 +53,7 @@ Vert_Position_SLIDER = "Vert_Position_SLIDER"
 
 # IDs for find sphere panel controls
 Find_Sphere_Image_PANEL = "Find_Sphere_Image_PANEL"
+Sphere_Radius_TEXTCTRL = "Sphere_Radius_TEXTCTRL"
 Grab_Image_BUTTON = "Grab_Image_BUTTON"
 Delete_Points_BUTTON = "Delete_Points_BUTTON"
 Find_Sphere_BUTTON = "Find_Sphere_BUTTON"
@@ -228,26 +231,66 @@ class SphereTrax_Class:
         self.find_sphere_panel = xrc.XRCCTRL(self.notebook,Find_Sphere_PANEL)
 
         # Set up controls for find sphere panel
-        self.find_sphere_image_panel = xrc.XRCCTRL(self.find_sphere_panel,
-                                                   Find_Sphere_Image_PANEL)
-        self.grab_image_button = xrc.XRCCTRL(self.find_sphere_panel,Grab_Image_BUTTON)
-        self.delete_points_button = xrc.XRCCTRL(self.find_sphere_panel, Delete_Points_BUTTON)
-        self.find_sphere_button = xrc.XRCCTRL(self.find_sphere_panel, Find_Sphere_BUTTON)
+        self.find_sphere_image_panel = xrc.XRCCTRL(
+                self.find_sphere_panel, 
+                Find_Sphere_Image_PANEL
+                )
+        self.sphere_radius_textctrl = xrc.XRCCTRL(
+                self.find_sphere_panel, 
+                Sphere_Radius_TEXTCTRL
+                )
+        self.grab_image_button = xrc.XRCCTRL(
+                self.find_sphere_panel,
+                Grab_Image_BUTTON
+                )
+        self.delete_points_button = xrc.XRCCTRL(
+                self.find_sphere_panel, 
+                Delete_Points_BUTTON
+                )
+        self.find_sphere_button = xrc.XRCCTRL(
+                self.find_sphere_panel, 
+                Find_Sphere_BUTTON
+                )
+
+        # Set validator and initial value for sphere radius textctrl
+        self.sphere_radius_textctrl.SetValidator(
+                CharValidator('no-alpha,no-minus')
+                )
 
         # Set up events
-        wx.EVT_BUTTON(self.grab_image_button, xrc.XRCID(Grab_Image_BUTTON),
-                      self.on_grab_image_button)
-        wx.EVT_BUTTON(self.delete_points_button, xrc.XRCID(Delete_Points_BUTTON),
-                      self.on_delete_points_button)
-        wx.EVT_BUTTON(self.find_sphere_button, xrc.XRCID(Find_Sphere_BUTTON),
-                      self.on_find_sphere_button)
+        wx.EVT_BUTTON(
+                self.grab_image_button, 
+                xrc.XRCID(Grab_Image_BUTTON), 
+                self.on_grab_image_button
+                )
+        wx.EVT_BUTTON(
+                self.delete_points_button, 
+                xrc.XRCID(Delete_Points_BUTTON), 
+                self.on_delete_points_button
+                )
+        wx.EVT_BUTTON( 
+                self.find_sphere_button, 
+                xrc.XRCID(Find_Sphere_BUTTON), 
+                self.on_find_sphere_button
+                )
+
+        wx.EVT_TEXT_ENTER(
+                self.sphere_radius_textctrl,
+                xrc.XRCID(Sphere_Radius_TEXTCTRL),
+                self.on_sphere_radius_update
+                )
+        self.sphere_radius_textctrl.Bind(
+                wx.EVT_KILL_FOCUS, 
+                self.on_sphere_radius_update
+                )
 
         # Setup image plot panel -- copying Andrew
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.plot_panel = PlotPanel(self.find_sphere_image_panel)
+        self.sphere_radius_textctrl.SetValue(str(self.plot_panel.radius))
 
         # wx boilerplate
-        sizer.Add(self.plot_panel, 1, wx.EXPAND )# |wx.TOP| wx.LEFT |wx.ALIGN_CENTER)
+        sizer.Add(self.plot_panel, 1, wx.EXPAND )
         self.find_sphere_image_panel.SetSizer(sizer)
         self.find_sphere_image_panel.Fit()
 
@@ -405,6 +448,23 @@ class SphereTrax_Class:
         self.lock.release()
 
     # Callbacks for find sphere page ------------------------------------------
+
+    def on_sphere_radius_update(self,event):
+        new_value = self.sphere_radius_textctrl.GetValue()
+        if not new_value:
+            self.sphere_radius_textctrl.SetValue(str(self.plot_panel.radius))
+            return 
+        # Convert to float and check that the value is > 0  
+        new_value = float(new_value)
+        if new_value > 0:
+            self.plot_panel.radius = new_value
+        else:
+            self.sphere_radius_textctrl.SetValue(str(self.plot_panel.radius))
+            msg = 'Sphere radius must be > 0'
+            dlg = wx.MessageDialog(self.plot_panel, msg, 'SphereTrax Error', wx.OK | wx.ICON_ERROR)
+            dlg.ShowModal()
+            dlg.Destroy()
+
     def on_grab_image_button(self, event):
         self.lock.acquire()
         print 'grab image -- ',
@@ -425,28 +485,30 @@ class SphereTrax_Class:
 
         print 'find_sphere'
         pts = self.plot_panel.get_points()
+        num_pts_required = 6
 
-        if len(pts) < 3:
-            dlg = wx.MessageDialog(self.plot_panel,
-                                   'At least three boundary points require to locate sphere',
-                                   'SphereTrax Error',
-                                   wx.OK | wx.ICON_ERROR
-                                   )
+        if len(pts) < num_pts_required:
+            msg = 'At least {0} boundary points required to locate sphere'.format(num_pts_required)
+            dlg = wx.MessageDialog(self.plot_panel, msg, 'SphereTrax Error', wx.OK | wx.ICON_ERROR)
             dlg.ShowModal()
             dlg.Destroy()
             return
 
         self.lock.acquire()
-        # Find positon of the sphere
-        self.plot_panel.sphere_pos = find_sphere_pos(self.plot_panel.cam_cal,
-                                                     self.plot_panel.radius,
-                                                     self.plot_panel.z_guess,
-                                                     pts)
+        ## Find positon of the sphere
+        sphere_data  = find_sphere_pos(
+                self.plot_panel.cam_cal,
+                self.plot_panel.radius,
+                self.plot_panel.z_min,
+                self.plot_panel.z_max,
+                pts
+                )
+        self.plot_panel.sphere_pos, self.plot_panel.ellipse_coeff = sphere_data
 
-        # Reproject sphere position
-        u_list, v_list, u0, v0 = get_reproject_pts(self.plot_panel.cam_cal,
-                                                   self.plot_panel.radius,
-                                                   self.plot_panel.sphere_pos)
+        # Get sphere boundary and center
+        u_list, v_list = sphere_finder.create_ellipse_pts(*self.plot_panel.ellipse_coeff)
+        u0, v0 = self.plot_panel.ellipse_coeff[2], self.plot_panel.ellipse_coeff[3]
+        print 'sphere center:', u0, v0
 
         self.plot_panel.update_reproj_points(u_list,v_list)
         self.plot_panel.update_center_points([u0],[v0])
@@ -821,11 +883,12 @@ class PlotPanel(wx.Panel):
 
         # Setup lines
         self.input_line = self.axes.plot([],[],'.b')[0]
-        self.reproj_line = self.axes.plot([],[],'.r')[0]
-        self.center_line = self.axes.plot([],[],'.g')[0]
+        self.reproj_line = self.axes.plot([],[],'r')[0]
+        self.center_line = self.axes.plot([],[],'og')[0]
 
         # Sphere position
         self.sphere_pos = None
+        self.ellipse_coeff = None
         self.extent = (0,0,0,0)
 
         # Load camera calibration and sphere data
@@ -835,7 +898,8 @@ class PlotPanel(wx.Panel):
 
         sphere_data_file = pkg_resources.resource_filename(__name__,
                                                            'data/sphere_defaults.txt')
-        self.radius, self.z_guess = load_sphere_data(sphere_data_file)
+
+        self.radius, self.z_min, self.z_max = load_sphere_data(sphere_data_file)
 
     def plot_data(self, buf):
         print 'plotting buffer'
@@ -843,14 +907,24 @@ class PlotPanel(wx.Panel):
         n,m = buf.shape
 
         plot_buf = buf
-        extent = (0,m,n,0)
+        # WBD -------------------------------------------
+        #extent = (0,m,n,0)
+        extent = (0,m,0,n)
+        # -----------------------------------------------
+        ##buf[0:100,0:100] = 0.0
 
         self.extent = extent
         self.axes.set_visible(True)
+        # WBD ------------------------------------------
+        #self.axes.imshow(plot_buf,
+        #                 cmap=matplotlib.cm.pink,
+        #                 origin='upper',
+        #                 extent=extent)
         self.axes.imshow(plot_buf,
                          cmap=matplotlib.cm.pink,
-                         origin='upper',
+                         origin='lower',
                          extent=extent)
+        # ----------------------------------------------
 
         self.axes.add_line(self.input_line)
         self.axes.add_line(self.reproj_line)
@@ -877,6 +951,7 @@ class PlotPanel(wx.Panel):
         self.reproj_line.set_data([],[])
         self.center_line.set_data([],[])
         self.sphere_pos = None
+        self.ellipse_coeff = None
         self.canvas.draw()
 
     def get_points(self):
@@ -894,6 +969,7 @@ class PlotPanel(wx.Panel):
 
 
 # Utility functions -----------------------------------------
+
 def load_cam_cal(calib_file):
     """
     Loads the camera calibration
@@ -911,61 +987,23 @@ def load_sphere_data(filename):
         # Should really add some error checing here
         if line[0] == 'radius':
             radius = float(line[1])
-        if line[0] == 'z_guess':
-            z_guess = float(line[1])
+        if line[0] == 'z_min':
+            z_min = float(line[1])
+        if line[0] == 'z_max':
+            z_max = float(line[1])
+
     fid.close()
-    return radius, z_guess
+    return radius, z_min, z_max
 
-def find_sphere_pos(cal, radius, z_guess, pts ):
+def find_sphere_pos(cal, R, z_min, z_max, pts, constrain_to_circle=True): 
     """
-    Computes the position of the center of the sphere
+    Finds the position of the sphere given a set points samples from the boundary
+    of the sphere in image plane. 
     """
-    # Convert points to world coords
-    f0,f1,c0,c1 = cal
-    pts_world = [ ((p[0]-c0)/f0, (p[1]-c1)/f1) for p in pts]
-
-    # x,y position of initial guess
-    x0 = 0.0, 0.0, z_guess
-    x = fmin(find_sphere_cost,x0,(pts_world,radius))
-    return tuple(x)
-
-def find_sphere_cost(x,pts,radius):
-    """
-    Optimization cost function for find sphere position
-    """
-    val = 0.0
-    for p in pts:
-        A = p[0]**2 + p[1]**2 + 1
-        B = -2.0*(p[0]*x[0] + p[1]*x[1] + x[2])
-        C = x[0]**2 + x[1]**2 + x[2]**2 - radius**2
-        val += (B**2 - 4.0*A*C)**2
-    return val
-
-
-def get_reproject_pts(cal, radius, pos, n=100):
-    """
-    Using camera calibration and extimated sphere position get
-    points reprojected from the surface of the sphere and the sphere's
-    center.
-    """
-    f0,f1,c0,c1 = cal
-    # Get point from sphere's surfacE
-    ang_list = numpy.linspace(0.0,2.0*numpy.pi,n)
-    u_list, v_list = [], []
-    for a in ang_list:
-        for b in ang_list:
-            x = pos[0] + radius*numpy.cos(a)*numpy.cos(b)
-            y = pos[1] + radius*numpy.sin(a)*numpy.cos(b)
-            z = pos[2] + radius*numpy.sin(b)
-            u = f0*x/z + c0
-            v = f1*y/z + c1
-            u_list.append(u)
-            v_list.append(v)
-    # Get center of sphere
-    u0 = f0*pos[0]/pos[2] + c0
-    v0 = f1*pos[1]/pos[2] + c1
-    return u_list, v_list, u0, v0
-
+    fx, fy, cx, cy = cal
+    ellipse_coeff= sphere_finder.fit_ellipse(pts,constrain_to_circle=constrain_to_circle)
+    pos = sphere_finder.find_sphere_pos(z_min, z_max, R, fx, fy, cx, cy, ellipse_coeff)
+    return pos, ellipse_coeff
 
 def get_slider_value(widget):
     """
@@ -1027,6 +1065,45 @@ def get_optic_flow_pix(num_row, num_col, horiz_space, horiz_pos, vert_space,
     return of_pix
 
 
+class CharValidator(wx.PyValidator): 
+    """ 
+    Validates data as it is entered into the text controls.  
+    """ 
+    
+    def __init__(self, flag):
+        wx.PyValidator.__init__(self)
+        self.flag = flag
+        self.Bind(wx.EVT_CHAR, self.OnChar)
+
+    def Clone(self):
+        """ Required Validator method """
+        return CharValidator(self.flag)
+
+    def Validate(self, win):
+        return True
+
+    def TransferToWindow(self):
+        return True
+
+    def TransferFromWindow(self):
+        return True
+
+    def OnChar(self, event):
+        keycode = int(event.GetKeyCode())
+        if keycode < 256:
+            #print keycode
+            key = chr(keycode)
+            #print key
+            if self.flag == 'no-alpha,no-minus':
+                if key in string.letters or key == '-':
+                    return
+            if self.flag == 'no-alpha' and key in string.letters:
+                return
+            if self.flag == 'no-digit' and key in string.digits:
+                return
+        event.Skip()
+
+
 class LagList:
 
     def __init__(self, len):
@@ -1046,3 +1123,7 @@ class LagList:
             return True
         else:
             return False
+
+
+
+

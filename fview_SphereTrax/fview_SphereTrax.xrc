@@ -321,7 +321,6 @@
                       <growablecols>0</growablecols>
                       <object class="sizeritem">
                         <object class="wxBoxSizer">
-                          <orient>wxVERTICAL</orient>
                           <object class="sizeritem">
                             <object class="wxPanel" name="Find_Sphere_Image_PANEL">
                               <style/>
@@ -329,13 +328,38 @@
                             <option>1</option>
                             <flag>wxEXPAND|wxGROW|wxALIGN_CENTRE</flag>
                           </object>
+                          <orient>wxVERTICAL</orient>
                         </object>
                         <option>1</option>
-                        <flag>wxEXPAND|wxGROW|wxALIGN_CENTRE</flag>
+                        <flag>wxALL|wxEXPAND|wxGROW</flag>
                       </object>
                       <object class="sizeritem">
                         <object class="wxBoxSizer">
                           <orient>wxHORIZONTAL</orient>
+                          <object class="sizeritem">
+                            <object class="wxBoxSizer">
+                              <object class="sizeritem">
+                                <object class="wxStaticText">
+                                  <label>Radius (mm)</label>
+                                </object>
+                                <option>1</option>
+                                <flag>wxALL</flag>
+                                <border>1</border>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxTextCtrl" name="Sphere_Radius_TEXTCTRL">
+                                  <style>wxTE_PROCESS_ENTER</style>
+                                </object>
+                                <option>1</option>
+                                <flag>wxALL</flag>
+                                <border>1</border>
+                              </object>
+                              <orient>wxHORIZONTAL</orient>
+                            </object>
+                            <option>1</option>
+                            <flag>wxALL</flag>
+                            <border>10</border>
+                          </object>
                           <object class="sizeritem">
                             <object class="wxButton" name="Grab_Image_BUTTON">
                               <label>grab image</label>
