@@ -26,6 +26,7 @@ import socket  # for udp
 import struct
 import adskalman.adskalman as adskalman
 import sphere_finder
+import functools
 
 RESFILE = pkg_resources.resource_filename(__name__,"fview_SphereTrax.xrc") # trigger extraction
 RES = xrc.EmptyXmlResource()
@@ -37,6 +38,8 @@ SphereTrax_PANEL = "SphereTrax_PANEL"
 SphereTrax_NOTEBOOK = "SphereTrax_NOTEBOOK"
 Optic_Flow_PANEL = "Optic_Flow_PANEL"
 Find_Sphere_PANEL = "Find_Sphere_PANEL"
+CameraCal_PANEL = "CameraCal_PANEL"
+Alignment_PANEL = "Alignment_PANEL"
 Tracking_PANEL = "Tracking_PANEL"
 Closed_Loop_PANEL = "Closed_Loop_PANEL"
 
@@ -50,6 +53,24 @@ Horiz_Space_SLIDER = "Horiz_Space_SLIDER"
 Horiz_Position_SLIDER = "Horiz_Position_SLIDER"
 Vert_Space_SLIDER = "Vert_Space_SLIDER"
 Vert_Position_SLIDER = "Vert_Position_SLIDER"
+
+# IDs for camera calibration panel controls
+CameraCal_Fx_TEXTCTRL = "CameraCal_Fx_TEXTCTRL"
+CameraCal_Fy_TEXTCTRL = "CameraCal_Fy_TEXTCTRL"
+CameraCal_Cx_TEXTCTRL = "CameraCal_Cx_TEXTCTRL"
+CameraCal_Cy_TEXTCTRL = "CameraCal_Cy_TEXTCTRL"
+CameraCal_Load_BUTTON = "CameraCal_Load_BUTTON"
+CameraCal_Save_BUTTON = "CameraCal_Save_BUTTON"
+
+# IDs for alignment panel 
+Alignment_Arc1_CHECKBOX = "Alignment_Arc1_CHECKBOX"
+Alignment_Arc2_CHECKBOX = "Alignment_Arc2_CHECKBOX"
+Alignment_Line1_CHECKBOX = "Alignment_Line1_CHECKBOX"
+Alignment_Line2_CHECKBOX = "Alignment_Line2_CHECKBOX"
+Alignment_Arc1_TEXTCTRL = "Alignment_Arc1_TEXTCTRL"
+Alignment_Arc2_TEXTCTRL = "Alignment_Arc2_TEXTCTRL"
+Alignment_Line1_TEXTCTRL = "Alignment_Line1_TEXTCTRL"
+Alignment_Line2_TEXTCTRL = "Alignment_Line2_TEXTCTRL"
 
 # IDs for find sphere panel controls
 Find_Sphere_Image_PANEL = "Find_Sphere_Image_PANEL"
@@ -144,6 +165,8 @@ class SphereTrax_Class:
         self.main_frame_init()
         self.optic_flow_panel_init()
         self.find_sphere_panel_init()
+        self.cameracal_panel_init()
+        self.alignment_panel_init()
         self.tracking_panel_init()
         self.closed_loop_panel_init()
 
@@ -293,6 +316,85 @@ class SphereTrax_Class:
         sizer.Add(self.plot_panel, 1, wx.EXPAND )
         self.find_sphere_image_panel.SetSizer(sizer)
         self.find_sphere_image_panel.Fit()
+
+    def cameracal_panel_init(self):
+        """
+        Initializes the camera calibration notebook page
+        """
+        self.cameracal_panel = xrc.XRCCTRL(self.notebook, CameraCal_PANEL)
+
+        # Setup controls for camera calibration panel
+        textctrl_name_list = ['fx', 'fy', 'cx', 'cy']
+        for name in textctrl_name_list:
+            textctrl = xrc.XRCCTRL(
+                    self.cameracal_panel, 
+                    'CameraCal_{0}_TEXTCTRL'.format(name.title()),
+                    )
+            setattr(self, 'cameracal_{0}_textctrl'.format(name), textctrl)
+
+        button_name_list = ['load', 'save']
+        for name in button_name_list:
+            button = xrc.XRCCTRL( 
+                    self.cameracal_panel, 
+                    'CameraCal_{0}_BUTTON'.format(name.title()),
+                    )
+            setattr(self,'cameracal_{0}_button'.format(name), button)
+
+        # Set validators for text controls
+        for name in textctrl_name_list:
+            textctrl = getattr(self,'cameracal_{0}_textctrl'.format(name))
+            textctrl.SetValidator(CharValidator('no-alpha'))
+
+        # Set initial Values
+
+        # Setup events
+        for name in textctrl_name_list:
+            textctrl = getattr(self,'cameracal_{0}_textctrl'.format(name))
+            callback = functools.partial(self.on_cameracal_update,name)
+            textctrl.Bind(wx.EVT_KILL_FOCUS, callback)
+
+        for name in button_name_list:
+            button = getattr(self,'cameracal_{0}_button'.format(name))
+            xrcid = xrc.XRCID('CameraCal_{0}_BUTTON'.format(name.title()))
+            callback = functools.partial(self.on_cameracal_button,name)
+            wx.EVT_BUTTON(button, xrcid, callback)
+
+
+    def alignment_panel_init(self):
+        """
+        Initializes the alignment tools notebook page
+        """
+        self.alignment_panel = xrc.XRCCTRL(self.notebook, Alignment_PANEL)
+
+        # Setup controls for alignment page
+        control_name_list = ['arc1', 'arc2', 'line1', 'line2']
+        for name in control_name_list:
+            checkbox = xrc.XRCCTRL(
+                    self.alignment_panel,
+                    'Alignment_{0}_CHECKBOX'.format(name.title()),
+                    )
+            setattr(self,'alignment_{0}_checkbox'.format(name), checkbox)
+            textctrl = xrc.XRCCTRL(
+                    self.alignment_panel,
+                    'Alignment_{0}_TEXTCTRL'.format(name.title()),
+                    )
+            setattr(self,'alignment_{0}_textctrl'.format(name),textctrl)
+
+
+        # Setup validators
+        for name in control_name_list:
+            textctrl = getattr(self,'alignment_{0}_textctrl'.format(name))
+            textctrl.SetValidator(CharValidator('no-alpha'))
+
+        # Set initial values
+
+        # Setup events
+        for name in control_name_list:
+            textctrl = getattr(self,'alignment_{0}_textctrl'.format(name))
+            callback = functools.partial(self.on_alignment_textctrl, name)
+            textctrl.Bind(wx.EVT_KILL_FOCUS, callback)
+
+
 
     def tracking_panel_init(self):
         """
@@ -514,7 +616,23 @@ class SphereTrax_Class:
         self.plot_panel.update_center_points([u0],[v0])
         self.lock.release()
 
-    # Callbacks for tracking panel page  ----------------------------------
+    # Callbacks for camera calibration page -----------------------------------
+    def on_cameracal_update(self,name,event):
+        print 'on_cameracal_update'
+        print 'name = ', name
+
+    def on_cameracal_button(self,name,event):
+        print 'on_cameracal_button'
+        print 'name = ', name
+
+    # Callbacks for alignment page --------------------------------------------
+    def on_alignment_textctrl(self, name, event):
+        print 'on_alignment_textctrl'
+        print 'name = ', name
+
+
+
+    # Callbacks for tracking panel page  --------------------------------------
     def on_tracking_enable(self, event):
 
         # Check that optic flow enabled before enabling tracking
@@ -907,24 +1025,14 @@ class PlotPanel(wx.Panel):
         n,m = buf.shape
 
         plot_buf = buf
-        # WBD -------------------------------------------
-        #extent = (0,m,n,0)
-        extent = (0,m,0,n)
-        # -----------------------------------------------
-        ##buf[0:100,0:100] = 0.0
+        extent = (0,m,n,0)
 
         self.extent = extent
         self.axes.set_visible(True)
-        # WBD ------------------------------------------
-        #self.axes.imshow(plot_buf,
-        #                 cmap=matplotlib.cm.pink,
-        #                 origin='upper',
-        #                 extent=extent)
         self.axes.imshow(plot_buf,
                          cmap=matplotlib.cm.pink,
-                         origin='lower',
+                         origin='upper',
                          extent=extent)
-        # ----------------------------------------------
 
         self.axes.add_line(self.input_line)
         self.axes.add_line(self.reproj_line)
