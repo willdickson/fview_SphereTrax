@@ -1,0 +1,16 @@
+arc1:
+  enabled: false
+  position: 1
+
+arc2:
+  enabled: false
+  position: 2
+
+line1:
+  enabled: false
+  position: 2 
+
+line2: 
+  enabled: false
+  position: -2
+ 

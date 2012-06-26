@@ -1,5 +1,6 @@
 from __future__ import division
 import pkg_resources
+import os
 import os.path
 import sys
 import copy
@@ -27,10 +28,42 @@ import struct
 import adskalman.adskalman as adskalman
 import sphere_finder
 import functools
+import platform
+import yaml
 
 RESFILE = pkg_resources.resource_filename(__name__,"fview_SphereTrax.xrc") # trigger extraction
 RES = xrc.EmptyXmlResource()
 RES.LoadFromString(open(RESFILE).read())
+
+# User home directory
+USER_HOME = os.getenv('USERPROFILE')
+if USER_HOME is None:
+    USER_HOME = os.getenv('HOME')
+
+# User resources directory
+USER_RC_DIR = os.path.join(USER_HOME, '.spheretrax')
+
+# Yaml parameter files and default files
+CAMERACAL_YAML = 'cameracal.yaml'
+USER_CAMERACAL_YAML = os.path.join(USER_RC_DIR, CAMERACAL_YAML)
+DFLT_CAMERACAL_YAML = pkg_resources.resource_filename(
+        __name__, 
+        os.path.join('data', CAMERACAL_YAML)
+        )
+
+ALIGNMENT_YAML = 'alignment.yaml'
+USER_ALIGNMENT_YAML = os.path.join(USER_RC_DIR, ALIGNMENT_YAML)
+DFLT_ALIGNMENT_YAML = pkg_resources.resource_filename(
+        __name__, 
+        os.path.join('data', ALIGNMENT_YAML)
+        )
+
+SPHEREDAT_YAML = 'spheredat.yaml'
+USER_SPHEREDAT_YAML = os.path.join(USER_RC_DIR, SPHEREDAT_YAML)
+DFLT_SPHEREDAT_YAML = pkg_resources.resource_filename(
+        __name__, 
+        os.path.join('data', SPHEREDAT_YAML)
+        )
 
 # IDs for frame, panel, notebook and subpanels
 SphereTrax_FRAME = "SphereTrax_FRAME"
@@ -346,12 +379,20 @@ class SphereTrax_Class:
             textctrl.SetValidator(CharValidator('no-alpha'))
 
         # Set initial Values
+        cameracal_dict = load_yaml_params(
+                USER_CAMERACAL_YAML,
+                DFLT_CAMERACAL_YAML,
+                'user camera calibration file'
+                )
+
 
         # Setup events
         for name in textctrl_name_list:
+            xrcid = xrc.XRCID('CameraCal_{0}_TEXTCTRL'.format(name.title()))
             textctrl = getattr(self,'cameracal_{0}_textctrl'.format(name))
             callback = functools.partial(self.on_cameracal_update,name)
-            textctrl.Bind(wx.EVT_KILL_FOCUS, callback)
+            textctrl.Bind(wx.EVT_KILL_FOCUS, callback)    # Focus Changes event 
+            wx.EVT_TEXT_ENTER(textctrl, xrcid, callback)  # Enter pressed event
 
         for name in button_name_list:
             button = getattr(self,'cameracal_{0}_button'.format(name))
@@ -380,21 +421,33 @@ class SphereTrax_Class:
                     )
             setattr(self,'alignment_{0}_textctrl'.format(name),textctrl)
 
-
         # Setup validators
         for name in control_name_list:
             textctrl = getattr(self,'alignment_{0}_textctrl'.format(name))
             textctrl.SetValidator(CharValidator('no-alpha'))
 
         # Set initial values
+        alignment_dict = load_yaml_params(
+                USER_ALIGNMENT_YAML,
+                DFLT_ALIGNMENT_YAML,
+                'user alignment file'
+                )
 
         # Setup events
         for name in control_name_list:
+
+            # Textctrl events
             textctrl = getattr(self,'alignment_{0}_textctrl'.format(name))
+            xrcid = xrc.XRCID('Alignment_{0}_TEXTCTRL'.format(name.title()))
             callback = functools.partial(self.on_alignment_textctrl, name)
-            textctrl.Bind(wx.EVT_KILL_FOCUS, callback)
+            textctrl.Bind(wx.EVT_KILL_FOCUS, callback)    # Focus Changed event
+            wx.EVT_TEXT_ENTER(textctrl, xrcid, callback)  # Enter pressed event
 
-
+            ## Checkbox events
+            checkbox = getattr(self,'alignment_{0}_checkbox'.format(name))
+            xrcid = xrc.XRCID('Alignment_{0}_CHECKBOX'.format(name.title()))
+            callback = functools.partial(self.on_alignment_checkbox, name)
+            wx.EVT_CHECKBOX(checkbox, xrcid, callback) 
 
     def tracking_panel_init(self):
         """
@@ -630,7 +683,12 @@ class SphereTrax_Class:
         print 'on_alignment_textctrl'
         print 'name = ', name
 
-
+    def on_alignment_checkbox(self, name, event):
+        checkbox = getattr(self,'alignment_{0}_checkbox'.format(name))
+        value = checkbox.GetValue()
+        print 'on alignment checkbox'
+        print 'name = ', name
+        print value
 
     # Callbacks for tracking panel page  --------------------------------------
     def on_tracking_enable(self, event):
@@ -1077,6 +1135,21 @@ class PlotPanel(wx.Panel):
 
 
 # Utility functions -----------------------------------------
+
+def load_yaml_params(filename, defaults_filename, description): 
+    """
+    Load parameters from yaml file.
+    """
+    try:
+        with open(filename,'r') as f:
+            yaml_dict = yaml.load(f)
+    except Exception, e:
+        print e
+        print 'Error: unable to load {0} {1}'.format(description, filename), 
+        print ' - using defaults {0}'.format(defaults_filename)
+        with open(defaults_filename,'r') as f:
+            yaml_dict = yaml.load(f)
+    return yaml_dict
 
 def load_cam_cal(calib_file):
     """
