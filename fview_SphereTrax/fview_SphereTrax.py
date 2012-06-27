@@ -752,6 +752,9 @@ class SphereTrax_Class:
                     str(self.cameracal_dict['size']),
                     '--square',
                     str(self.cameracal_dict['square']),
+                    '--zero-tangent-dist',
+                    '--k-coefficients',
+                    str(0), 
                     'image:={0}'.format(image_raw_topic),
                     ]
             self.cameracal_popen = subprocess.Popen(cmd_list)
