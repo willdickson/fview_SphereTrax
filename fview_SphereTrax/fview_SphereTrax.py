@@ -30,6 +30,13 @@ import sphere_finder
 import functools
 import platform
 import yaml
+import subprocess
+
+try:
+    import roslib
+    HAVE_ROS = True
+except ImportError, err:
+    HAVE_ROS = False
 
 RESFILE = pkg_resources.resource_filename(__name__,"fview_SphereTrax.xrc") # trigger extraction
 RES = xrc.EmptyXmlResource()
@@ -92,8 +99,9 @@ CameraCal_Fx_TEXTCTRL = "CameraCal_Fx_TEXTCTRL"
 CameraCal_Fy_TEXTCTRL = "CameraCal_Fy_TEXTCTRL"
 CameraCal_Cx_TEXTCTRL = "CameraCal_Cx_TEXTCTRL"
 CameraCal_Cy_TEXTCTRL = "CameraCal_Cy_TEXTCTRL"
-CameraCal_Load_BUTTON = "CameraCal_Load_BUTTON"
+CameraCal_Load_BUTTON = "CameraCal_Save_BUTTON"
 CameraCal_Save_BUTTON = "CameraCal_Save_BUTTON"
+CameraCal_Run_BUTTON = "CameraCal_Run_BUTTON"
 
 # IDs for alignment panel 
 Alignment_Arc1_CHECKBOX = "Alignment_Arc1_CHECKBOX"
@@ -104,6 +112,7 @@ Alignment_Arc1_TEXTCTRL = "Alignment_Arc1_TEXTCTRL"
 Alignment_Arc2_TEXTCTRL = "Alignment_Arc2_TEXTCTRL"
 Alignment_Line1_TEXTCTRL = "Alignment_Line1_TEXTCTRL"
 Alignment_Line2_TEXTCTRL = "Alignment_Line2_TEXTCTRL"
+Alignment_Save_BUTTON = "Alignment_Save_BUTTON"
 
 # IDs for find sphere panel controls
 Find_Sphere_Image_PANEL = "Find_Sphere_Image_PANEL"
@@ -202,6 +211,7 @@ class SphereTrax_Class:
         self.alignment_panel_init()
         self.tracking_panel_init()
         self.closed_loop_panel_init()
+        self.cameracal_popen = None
 
 
     def main_frame_init(self):
@@ -365,7 +375,7 @@ class SphereTrax_Class:
                     )
             setattr(self, 'cameracal_{0}_textctrl'.format(name), textctrl)
 
-        button_name_list = ['load', 'save']
+        button_name_list = ['load', 'save', 'run']
         for name in button_name_list:
             button = xrc.XRCCTRL( 
                     self.cameracal_panel, 
@@ -373,18 +383,21 @@ class SphereTrax_Class:
                     )
             setattr(self,'cameracal_{0}_button'.format(name), button)
 
+        # Set visibility of run button based on whether or not ros is running
+        self.cameracal_run_button.Hide()
+        if HAVE_ROS: 
+            ros_running_test = subprocess.Popen(['rosnode', 'list'], stdout=subprocess.PIPE).communicate()[0]
+            if ros_running_test:
+                # We have ROS and roscore is running
+                self.cameracal_run_button.Show()
+
         # Set validators for text controls
         for name in textctrl_name_list:
             textctrl = getattr(self,'cameracal_{0}_textctrl'.format(name))
             textctrl.SetValidator(CharValidator('no-alpha'))
 
         # Set initial Values
-        cameracal_dict = load_yaml_params(
-                USER_CAMERACAL_YAML,
-                DFLT_CAMERACAL_YAML,
-                'user camera calibration file'
-                )
-
+        self.load_cameracal()
 
         # Setup events
         for name in textctrl_name_list:
@@ -396,8 +409,8 @@ class SphereTrax_Class:
 
         for name in button_name_list:
             button = getattr(self,'cameracal_{0}_button'.format(name))
-            xrcid = xrc.XRCID('CameraCal_{0}_BUTTON'.format(name.title()))
-            callback = functools.partial(self.on_cameracal_button,name)
+            xrcid = xrc.XRCID('CameraCal_{0}_BUTTON'.format(name.title())) 
+            callback = functools.partial(self.on_cameracal_button,name) 
             wx.EVT_BUTTON(button, xrcid, callback)
 
 
@@ -409,6 +422,7 @@ class SphereTrax_Class:
 
         # Setup controls for alignment page
         control_name_list = ['arc1', 'arc2', 'line1', 'line2']
+        self.alignment_panel.control_name_list = control_name_list
         for name in control_name_list:
             checkbox = xrc.XRCCTRL(
                     self.alignment_panel,
@@ -421,6 +435,9 @@ class SphereTrax_Class:
                     )
             setattr(self,'alignment_{0}_textctrl'.format(name),textctrl)
 
+        button = xrc.XRCCTRL(self.alignment_panel, Alignment_Save_BUTTON)
+        self.alignment_save_button = button
+
         # Setup validators
         for name in control_name_list:
             textctrl = getattr(self,'alignment_{0}_textctrl'.format(name))
@@ -432,6 +449,13 @@ class SphereTrax_Class:
                 DFLT_ALIGNMENT_YAML,
                 'user alignment file'
                 )
+        self.alignment_panel.alignment_dict = alignment_dict
+        for name in control_name_list:
+            checkbox = getattr(self,'alignment_{0}_checkbox'.format(name))
+            checkbox.SetValue(alignment_dict[name]['enabled'])
+            textctrl = getattr(self,'alignment_{0}_textctrl'.format(name))
+            position_str = str(alignment_dict[name]['position'])
+            textctrl.SetValue(position_str)
 
         # Setup events
         for name in control_name_list:
@@ -448,6 +472,12 @@ class SphereTrax_Class:
             xrcid = xrc.XRCID('Alignment_{0}_CHECKBOX'.format(name.title()))
             callback = functools.partial(self.on_alignment_checkbox, name)
             wx.EVT_CHECKBOX(checkbox, xrcid, callback) 
+
+        wx.EVT_BUTTON(
+                self.alignment_save_button,  
+                xrc.XRCID('Alignment_Save_BUTTON'),
+                self.on_alignment_save_button,
+                )
 
     def tracking_panel_init(self):
         """
@@ -651,8 +681,9 @@ class SphereTrax_Class:
 
         self.lock.acquire()
         ## Find positon of the sphere
+        cam_cal = [self.cameracal_dict[x] for x in ('fx','fy','cx', 'cy')] 
         sphere_data  = find_sphere_pos(
-                self.plot_panel.cam_cal,
+                cam_cal,
                 self.plot_panel.radius,
                 self.plot_panel.z_min,
                 self.plot_panel.z_max,
@@ -671,24 +702,97 @@ class SphereTrax_Class:
 
     # Callbacks for camera calibration page -----------------------------------
     def on_cameracal_update(self,name,event):
-        print 'on_cameracal_update'
-        print 'name = ', name
+        print 'on_cameracal_update', name
 
     def on_cameracal_button(self,name,event):
-        print 'on_cameracal_button'
-        print 'name = ', name
+        print 'on_cameracal_button', name
+        if name == 'save':
+            self.save_cameracal()
+        elif name == 'load':
+            self.load_cameracal()
+        elif name == 'run':
+            if self.cameracal_popen is None:
+                self.run_cameracal()
+            else:
+                self.kill_cameracal()
+
+    def load_cameracal(self): 
+        cam_cal_params = ['fx', 'fy', 'cx', 'cy']
+        self.cameracal_dict = load_yaml_params( 
+                USER_CAMERACAL_YAML,
+                DFLT_CAMERACAL_YAML,
+                'user camera calibration file'
+                )
+        for name in cam_cal_params:
+            textctrl = getattr(self,'cameracal_{0}_textctrl'.format(name))
+            textctrl.SetValue(str(self.cameracal_dict[name]))
+
+    def save_cameracal(self): 
+        save_yaml_params(USER_CAMERACAL_YAML, self.cameracal_dict)
+
+    def run_cameracal(self): 
+        """
+        Runs ROS camera calibrator node.
+        """
+        # Get image topic - take the first image_raw found in rostopic list
+        topic_list = subprocess.Popen(['rostopic','list'],stdout=subprocess.PIPE).communicate()[0]
+        topic_list = topic_list.split('\n')
+        image_raw_topic = None
+        for topic in topic_list:
+            if 'image_raw' in topic:
+                image_raw_topic = topic
+
+        # Launch camera calibrator node
+        if image_raw_topic is not None:
+            cmd_list = [ 
+                    'rosrun',
+                    'spheretrax_camera_calibration',
+                    'cameracalibrator.py',
+                    '--size',
+                    str(self.cameracal_dict['size']),
+                    '--square',
+                    str(self.cameracal_dict['square']),
+                    'image:={0}'.format(image_raw_topic),
+                    ]
+            self.cameracal_popen = subprocess.Popen(cmd_list)
+            button = self.cameracal_run_button.SetLabel('Kill')
+
+    def kill_cameracal(self):
+        """
+        Kills ROS camera calibrator node and loads new calibration values if any.
+        """
+        # Kill camera calibartor node
+        button = self.cameracal_run_button.SetLabel('Run')
+        if self.cameracal_popen is not None:
+            self.cameracal_popen.send_signal(subprocess.signal.SIGINT)
+            self.cameracal_popen = None
+        # Load new camera calibration
+        self.load_cameracal()
 
     # Callbacks for alignment page --------------------------------------------
     def on_alignment_textctrl(self, name, event):
-        print 'on_alignment_textctrl'
-        print 'name = ', name
+        """
+        Updates the alignment position parameters.
+        """
+        print 'on_alignment_textctrl', name
+        textctrl = getattr(self,'alignment_{0}_textctrl'.format(name))
+        value = textctrl.GetValue()
+        value = float(value)
+        self.alignment_panel.alignment_dict[name]['position'] = value
 
     def on_alignment_checkbox(self, name, event):
+        """
+        Updates the alignment checkbox enable,disable parameters.
+        """
         checkbox = getattr(self,'alignment_{0}_checkbox'.format(name))
+        print 'on_alignment_checkbox', name
         value = checkbox.GetValue()
-        print 'on alignment checkbox'
-        print 'name = ', name
-        print value
+        self.alignment_panel.alignment_dict[name]['enabled'] = value
+        print  self.alignment_panel.alignment_dict
+
+    def on_alignment_save_button(self,event):
+        print 'on_alignment_save_button'
+        save_yaml_params(USER_ALIGNMENT_YAML,self.alignment_panel.alignment_dict)
 
     # Callbacks for tracking panel page  --------------------------------------
     def on_tracking_enable(self, event):
@@ -921,7 +1025,7 @@ class SphereTrax_Class:
         vert_pos = self.vert_pos
         poll_int = self.poll_int
         wnd = self.wnd
-        cam_cal = self.plot_panel.cam_cal
+        cam_cal = [self.cameracal_dict[x] for x in ('fx','fy','cx', 'cy')] 
         sphere_radius = self.plot_panel.radius
         sphere_pos = self.plot_panel.sphere_pos
         self.lock.release()
@@ -1067,15 +1171,15 @@ class PlotPanel(wx.Panel):
         self.ellipse_coeff = None
         self.extent = (0,0,0,0)
 
-        # Load camera calibration and sphere data
-        cam_cal_file = pkg_resources.resource_filename(__name__,
-                                                       'data/camera_cal.txt')
-        self.cam_cal = load_cam_cal(cam_cal_file)
-
-        sphere_data_file = pkg_resources.resource_filename(__name__,
-                                                           'data/sphere_defaults.txt')
-
-        self.radius, self.z_min, self.z_max = load_sphere_data(sphere_data_file)
+        # Load sphere data
+        spheredat_dict = load_yaml_params(
+                USER_SPHEREDAT_YAML,
+                DFLT_SPHEREDAT_YAML,
+                'user camera calibration file'
+                )
+        self.radius = spheredat_dict['radius']
+        self.z_min = spheredat_dict['z_search_min']
+        self.z_max = spheredat_dict['z_search_max']
 
     def plot_data(self, buf):
         print 'plotting buffer'
@@ -1151,30 +1255,17 @@ def load_yaml_params(filename, defaults_filename, description):
             yaml_dict = yaml.load(f)
     return yaml_dict
 
-def load_cam_cal(calib_file):
+def save_yaml_params(filename,params_dict):
     """
-    Loads the camera calibration
+    Save parameters to yaml file.
     """
-    fid = open(calib_file)
-    line = fid.readline()
-    fid.close()
-    cal = [float(x) for x in line.split()]
-    return tuple (cal)
+    check_for_rc_dir()
+    with open(filename, 'w') as f:
+        yaml.dump(params_dict,f,default_flow_style=False)
 
-def load_sphere_data(filename):
-    fid = open(filename)
-    for line in fid.readlines():
-        line = line.split()
-        # Should really add some error checing here
-        if line[0] == 'radius':
-            radius = float(line[1])
-        if line[0] == 'z_min':
-            z_min = float(line[1])
-        if line[0] == 'z_max':
-            z_max = float(line[1])
-
-    fid.close()
-    return radius, z_min, z_max
+def check_for_rc_dir():
+    if not os.path.isdir(USER_RC_DIR):
+        os.mkdir(USER_RC_DIR)
 
 def find_sphere_pos(cal, R, z_min, z_max, pts, constrain_to_circle=True): 
     """
@@ -1272,14 +1363,20 @@ class CharValidator(wx.PyValidator):
     def OnChar(self, event):
         keycode = int(event.GetKeyCode())
         if keycode < 256:
-            #print keycode
             key = chr(keycode)
-            #print key
             if self.flag == 'no-alpha,no-minus':
                 if key in string.letters or key == '-':
                     return
-            if self.flag == 'no-alpha' and key in string.letters:
-                return
+            if self.flag == 'no-alpha': 
+                if key in string.letters:
+                    return
+                else:
+                    #  Minus sign can only be first character.
+                    textctrl = self.GetWindow()
+                    value = textctrl.GetValue()
+                    if len(value) > 1 and key == '-':
+                        return
+            
             if self.flag == 'no-digit' and key in string.digits:
                 return
         event.Skip()

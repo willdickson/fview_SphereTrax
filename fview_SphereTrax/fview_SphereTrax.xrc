@@ -424,6 +424,7 @@
                           </object>
                           <object class="sizeritem">
                             <object class="wxTextCtrl" name="CameraCal_Fx_TEXTCTRL">
+                              <size>120,27</size>
                               <style>wxTE_PROCESS_ENTER</style>
                             </object>
                             <flag>wxALL|wxALIGN_CENTRE</flag>
@@ -445,6 +446,7 @@
                           </object>
                           <object class="sizeritem">
                             <object class="wxTextCtrl" name="CameraCal_Fy_TEXTCTRL">
+                              <size>120,27</size>
                               <style>wxTE_PROCESS_ENTER</style>
                             </object>
                             <flag>wxALL|wxALIGN_CENTRE</flag>
@@ -466,6 +468,7 @@
                           </object>
                           <object class="sizeritem">
                             <object class="wxTextCtrl" name="CameraCal_Cx_TEXTCTRL">
+                              <size>120,27</size>
                               <style>wxTE_PROCESS_ENTER</style>
                             </object>
                             <flag>wxALL|wxALIGN_CENTRE</flag>
@@ -487,6 +490,7 @@
                           </object>
                           <object class="sizeritem">
                             <object class="wxTextCtrl" name="CameraCal_Cy_TEXTCTRL">
+                              <size>120,27</size>
                               <style>wxTE_PROCESS_ENTER</style>
                             </object>
                             <flag>wxALL|wxALIGN_CENTRE</flag>
@@ -506,6 +510,7 @@
                             <flag>wxALL|wxALIGN_CENTRE</flag>
                             <border>10</border>
                           </object>
+                          <orient>wxHORIZONTAL</orient>
                           <object class="sizeritem">
                             <object class="wxButton" name="CameraCal_Save_BUTTON">
                               <label>Save</label>
@@ -513,7 +518,13 @@
                             <flag>wxALL|wxALIGN_CENTRE</flag>
                             <border>10</border>
                           </object>
-                          <orient>wxHORIZONTAL</orient>
+                          <object class="sizeritem">
+                            <object class="wxButton" name="CameraCal_Run_BUTTON">
+                              <label>Run</label>
+                            </object>
+                            <flag>wxALL|wxALIGN_CENTRE</flag>
+                            <border>10</border>
+                          </object>
                         </object>
                         <flag>wxLEFT|wxRIGHT</flag>
                         <border>10</border>
@@ -666,6 +677,20 @@
                           <orient>wxHORIZONTAL</orient>
                         </object>
                         <flag>wxLEFT|wxRIGHT</flag>
+                        <border>10</border>
+                      </object>
+                      <object class="sizeritem">
+                        <object class="wxBoxSizer">
+                          <orient>wxHORIZONTAL</orient>
+                          <object class="sizeritem">
+                            <object class="wxButton" name="Alignment_Save_BUTTON">
+                              <label>Save</label>
+                            </object>
+                            <flag>wxALL|wxALIGN_CENTRE</flag>
+                            <border>10</border>
+                          </object>
+                        </object>
+                        <flag>wxLEFT</flag>
                         <border>10</border>
                       </object>
                     </object>
