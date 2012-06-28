@@ -35,7 +35,6 @@
     </object>
   </object>
   <object class="wxFrame" name="SphereTrax_FRAME">
-    <title>SphereTrax</title>
     <object class="wxPanel" name="SphereTrax_PANEL">
       <object class="wxBoxSizer">
         <orient>wxVERTICAL</orient>
@@ -349,47 +348,57 @@
                           <orient>wxHORIZONTAL</orient>
                           <object class="sizeritem">
                             <object class="wxBoxSizer">
+                              <orient>wxHORIZONTAL</orient>
                               <object class="sizeritem">
-                                <object class="wxStaticText">
-                                  <label>Radius (mm)</label>
+                                <object class="wxButton" name="Grab_Image_BUTTON">
+                                  <label>grab image</label>
                                 </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxButton" name="Delete_Points_BUTTON">
+                                  <label>delete points</label>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxButton" name="Find_Sphere_BUTTON">
+                                  <label>find sphere</label>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <object class="spacer">
+                                <size>10,10</size>
                                 <option>1</option>
-                                <flag>wxALL</flag>
-                                <border>1</border>
+                                <flag>wxEXPAND|wxGROW</flag>
+                                <border>10</border>
                               </object>
                               <object class="sizeritem">
                                 <object class="wxTextCtrl" name="Sphere_Radius_TEXTCTRL">
                                   <style>wxTE_PROCESS_ENTER</style>
                                 </object>
                                 <option>1</option>
-                                <flag>wxALL</flag>
-                                <border>1</border>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
                               </object>
-                              <orient>wxHORIZONTAL</orient>
-                            </object>
-                            <option>1</option>
-                            <flag>wxALL</flag>
-                            <border>10</border>
-                          </object>
-                          <object class="sizeritem">
-                            <object class="wxButton" name="Grab_Image_BUTTON">
-                              <label>grab image</label>
-                            </object>
-                            <option>1</option>
-                            <flag>wxALL</flag>
-                            <border>10</border>
-                          </object>
-                          <object class="sizeritem">
-                            <object class="wxButton" name="Delete_Points_BUTTON">
-                              <label>delete points</label>
-                            </object>
-                            <option>1</option>
-                            <flag>wxALL</flag>
-                            <border>10</border>
-                          </object>
-                          <object class="sizeritem">
-                            <object class="wxButton" name="Find_Sphere_BUTTON">
-                              <label>find sphere</label>
+                              <object class="sizeritem">
+                                <object class="wxButton" name="Sphere_Radius_Save_BUTTON">
+                                  <label>Save Radius</label>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxStaticText">
+                                  <label>Radius (mm)</label>
+                                </object>
+                                <option>1</option>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
                             </object>
                             <option>1</option>
                             <flag>wxALL</flag>
@@ -532,6 +541,18 @@
                         </object>
                         <flag>wxLEFT|wxRIGHT</flag>
                         <border>10</border>
+                      </object>
+                      <object class="sizeritem">
+                        <object class="wxBoxSizer">
+                          <orient>wxHORIZONTAL</orient>
+                          <object class="sizeritem">
+                            <object class="wxStaticText" name="CameraCal_Target_STATICTEXT">
+                              <label>* Target should be NxM chessboard with x (mm) squares</label>
+                            </object>
+                            <flag>wxALL|wxALIGN_CENTRE</flag>
+                            <border>10</border>
+                          </object>
+                        </object>
                       </object>
                     </object>
                   </object>
@@ -804,6 +825,7 @@
         </object>
       </object>
     </object>
-    <size>600,450</size>
+    <size>800,600</size>
+    <title>SphereTrax</title>
   </object>
 </resource>

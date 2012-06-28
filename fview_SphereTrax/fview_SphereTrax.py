@@ -102,30 +102,31 @@ Horiz_Position_SLIDER = "Horiz_Position_SLIDER"
 Vert_Space_SLIDER = "Vert_Space_SLIDER"
 Vert_Position_SLIDER = "Vert_Position_SLIDER"
 
-# IDs for camera calibration panel controls
-CameraCal_Fx_TEXTCTRL = "CameraCal_Fx_TEXTCTRL"
-CameraCal_Fy_TEXTCTRL = "CameraCal_Fy_TEXTCTRL"
-CameraCal_Cx_TEXTCTRL = "CameraCal_Cx_TEXTCTRL"
-CameraCal_Cy_TEXTCTRL = "CameraCal_Cy_TEXTCTRL"
-CameraCal_Save_BUTTON = "CameraCal_Save_BUTTON"
-CameraCal_Run_BUTTON = "CameraCal_Run_BUTTON"
+## IDs for camera calibration panel controls
+#CameraCal_Fx_TEXTCTRL = "CameraCal_Fx_TEXTCTRL"
+#CameraCal_Fy_TEXTCTRL = "CameraCal_Fy_TEXTCTRL"
+#CameraCal_Cx_TEXTCTRL = "CameraCal_Cx_TEXTCTRL"
+#CameraCal_Cy_TEXTCTRL = "CameraCal_Cy_TEXTCTRL"
+#CameraCal_Save_BUTTON = "CameraCal_Save_BUTTON"
+#CameraCal_Run_BUTTON = "CameraCal_Run_BUTTON"
 
 # IDs for alignment panel 
-Alignment_Arc1_CHECKBOX = "Alignment_Arc1_CHECKBOX"
-Alignment_Arc2_CHECKBOX = "Alignment_Arc2_CHECKBOX"
-Alignment_Line1_CHECKBOX = "Alignment_Line1_CHECKBOX"
-Alignment_Line2_CHECKBOX = "Alignment_Line2_CHECKBOX"
-Alignment_Arc1_TEXTCTRL = "Alignment_Arc1_TEXTCTRL"
-Alignment_Arc2_TEXTCTRL = "Alignment_Arc2_TEXTCTRL"
-Alignment_Line1_TEXTCTRL = "Alignment_Line1_TEXTCTRL"
-Alignment_Line2_TEXTCTRL = "Alignment_Line2_TEXTCTRL"
-Alignment_Save_BUTTON = "Alignment_Save_BUTTON"
-Alignment_SelectAll_BUTTON = "Alignment_Selectall_BUTTON"
-Alignment_ClearAll_BUTTON = "Alignment_Clearall_BUTTON"
+#Alignment_Arc1_CHECKBOX = "Alignment_Arc1_CHECKBOX"
+#Alignment_Arc2_CHECKBOX = "Alignment_Arc2_CHECKBOX"
+#Alignment_Line1_CHECKBOX = "Alignment_Line1_CHECKBOX"
+#Alignment_Line2_CHECKBOX = "Alignment_Line2_CHECKBOX"
+#Alignment_Arc1_TEXTCTRL = "Alignment_Arc1_TEXTCTRL"
+#Alignment_Arc2_TEXTCTRL = "Alignment_Arc2_TEXTCTRL"
+#Alignment_Line1_TEXTCTRL = "Alignment_Line1_TEXTCTRL"
+#Alignment_Line2_TEXTCTRL = "Alignment_Line2_TEXTCTRL"
+#Alignment_Save_BUTTON = "Alignment_Save_BUTTON"
+#Alignment_SelectAll_BUTTON = "Alignment_Selectall_BUTTON"
+#Alignment_ClearAll_BUTTON = "Alignment_Clearall_BUTTON"
 
 # IDs for find sphere panel controls
 Find_Sphere_Image_PANEL = "Find_Sphere_Image_PANEL"
 Sphere_Radius_TEXTCTRL = "Sphere_Radius_TEXTCTRL"
+Sphere_Radius_Save_BUTTON = "Sphere_Radius_Save_BUTTON"
 Grab_Image_BUTTON = "Grab_Image_BUTTON"
 Delete_Points_BUTTON = "Delete_Points_BUTTON"
 Find_Sphere_BUTTON = "Find_Sphere_BUTTON"
@@ -135,19 +136,6 @@ Tracking_Enable_CHECKBOX = "Tracking_Enable_CHECKBOX"
 Head_Rate_Plot_PANEL = "Head_Rate_Plot_PANEL"
 Forw_Rate_Plot_PANEL = "Forw_Rate_Plot_PANEL"
 Side_Rate_Plot_PANEL = "Side_Rate_Plot_PANEL"
-
-# Default values for optic flow panel
-#OPTIC_FLOW_DEFAULTS = {
-#    'opticflow_enable' : False,
-#    'poll_int' : 0.02,
-#    'wnd' : 20,
-#    'num_row' :  2,
-#    'num_col' : 2,
-#    'horiz_space': 0.5,
-#    'horiz_pos' : 0.5,
-#    'vert_space' : 0.5,
-#    'vert_pos' :0.5
-#    }
 
 OPTICFLOW_DICT_NOSAVE = {
     'optic_flow_enable' : False,
@@ -385,6 +373,10 @@ class SphereTrax_Class:
                 self.find_sphere_panel, 
                 Find_Sphere_BUTTON
                 )
+        self.sphere_radius_save_button = xrc.XRCCTRL(
+                self.find_sphere_panel,
+                Sphere_Radius_Save_BUTTON
+                )
 
         # Set validator and initial value for sphere radius textctrl
         self.sphere_radius_textctrl.SetValidator(
@@ -416,6 +408,11 @@ class SphereTrax_Class:
         self.sphere_radius_textctrl.Bind(
                 wx.EVT_KILL_FOCUS, 
                 self.on_sphere_radius_update
+                )
+        wx.EVT_BUTTON(
+                self.sphere_radius_save_button, 
+                xrc.XRCID(Sphere_Radius_Save_BUTTON), 
+                self.on_sphere_radius_save_button
                 )
 
         # Setup image plot panel -- copying Andrew
@@ -451,13 +448,18 @@ class SphereTrax_Class:
                     )
             setattr(self,'cameracal_{0}_button'.format(name), button)
 
-        # Set visibility of run button based on whether or not ros is running
-        self.cameracal_run_button.Hide()
+        self.cameracal_target_statictext = xrc.XRCCTRL(
+                self.cameracal_panel,
+                'CameraCal_Target_STATICTEXT',
+                )
+
+        # Enable/Disable run button based on whether or not ros is running
+        self.cameracal_run_button.Disable()
         if HAVE_ROS: 
             ros_running_test = subprocess.Popen(['rosnode', 'list'], stdout=subprocess.PIPE).communicate()[0]
             if ros_running_test:
                 # We have ROS and roscore is running
-                self.cameracal_run_button.Show()
+                self.cameracal_run_button.Enable()
 
         # Set validators for text controls
         for name in textctrl_name_list:
@@ -789,6 +791,15 @@ class SphereTrax_Class:
 
         self.update_alignment_linesegs()
 
+    def on_sphere_radius_save_button(self,event):
+        print "on_sphere_radius_save_button"
+        spheredat_dict = {
+                'radius'      :   self.plot_panel.radius,
+                'z_search_min':   self.plot_panel.z_min,
+                'z_search_max':   self.plot_panel.z_max,
+                }
+        save_yaml_params(USER_SPHEREDAT_YAML, spheredat_dict)
+
     # Callbacks for camera calibration page -----------------------------------
     def on_cameracal_update(self,name,event):
         print 'on_cameracal_update', name
@@ -815,6 +826,14 @@ class SphereTrax_Class:
         for name in cam_cal_params:
             textctrl = getattr(self,'cameracal_{0}_textctrl'.format(name))
             textctrl.SetValue(str(self.cameracal_dict[name]))
+
+        target_info = [ 
+                '* Note, calibration target should be a', 
+                '{0} chessboard'.format(self.cameracal_dict['size']), 
+                'with {0} (mm) squares'.format(self.cameracal_dict['square']), 
+                ]
+        target_info = ' '.join(target_info)
+        self.cameracal_target_statictext.SetLabel(target_info)
 
     def save_cameracal(self): 
         save_yaml_params(USER_CAMERACAL_YAML, self.cameracal_dict)
