@@ -53,20 +53,31 @@
                       <rows>4</rows>
                       <object class="sizeritem">
                         <object class="wxFlexGridSizer">
-                          <cols>1</cols>
-                          <rows>2</rows>
                           <object class="spacer">
                             <size>10,10</size>
                             <option>1</option>
                             <flag/>
+                          </object>
+                          <object class="spacer">
+                            <size>10,10</size>
+                            <option>1</option>
                           </object>
                           <object class="sizeritem">
                             <object class="wxCheckBox" name="Optic_Flow_Enable_CHECKBOX">
                               <label>enable</label>
                             </object>
                             <option>1</option>
-                            <flag>wxLEFT</flag>
+                            <flag>wxALL|wxALIGN_CENTRE</flag>
                           </object>
+                          <object class="sizeritem">
+                            <object class="wxButton" name="Optic_Flow_Save_BUTTON">
+                              <label>Save</label>
+                            </object>
+                            <flag>wxALL|wxALIGN_CENTRE</flag>
+                            <border>10</border>
+                          </object>
+                          <cols>2</cols>
+                          <rows>2</rows>
                         </object>
                         <option>1</option>
                         <flag>wxLEFT</flag>
@@ -503,13 +514,6 @@
                       </object>
                       <object class="sizeritem">
                         <object class="wxBoxSizer">
-                          <object class="sizeritem">
-                            <object class="wxButton" name="CameraCal_Load_BUTTON">
-                              <label>Load</label>
-                            </object>
-                            <flag>wxALL|wxALIGN_CENTRE</flag>
-                            <border>10</border>
-                          </object>
                           <orient>wxHORIZONTAL</orient>
                           <object class="sizeritem">
                             <object class="wxButton" name="CameraCal_Save_BUTTON">
@@ -685,6 +689,20 @@
                           <object class="sizeritem">
                             <object class="wxButton" name="Alignment_Save_BUTTON">
                               <label>Save</label>
+                            </object>
+                            <flag>wxALL|wxALIGN_CENTRE</flag>
+                            <border>10</border>
+                          </object>
+                          <object class="sizeritem">
+                            <object class="wxButton" name="Alignment_Selectall_BUTTON">
+                              <label>Select All</label>
+                            </object>
+                            <flag>wxALL|wxALIGN_CENTRE</flag>
+                            <border>10</border>
+                          </object>
+                          <object class="sizeritem">
+                            <object class="wxButton" name="Alignment_Clearall_BUTTON">
+                              <label>Clear All</label>
                             </object>
                             <flag>wxALL|wxALIGN_CENTRE</flag>
                             <border>10</border>

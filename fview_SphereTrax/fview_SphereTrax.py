@@ -51,6 +51,13 @@ if USER_HOME is None:
 USER_RC_DIR = os.path.join(USER_HOME, '.spheretrax')
 
 # Yaml parameter files and default files
+OPTICFLOW_YAML = 'opticflow.yaml'
+USER_OPTICFLOW_YAML = os.path.join(USER_RC_DIR, OPTICFLOW_YAML)
+DFLT_OPTICFLOW_YAML = pkg_resources.resource_filename(
+        __name__, 
+        os.path.join('data', OPTICFLOW_YAML)
+        )
+
 CAMERACAL_YAML = 'cameracal.yaml'
 USER_CAMERACAL_YAML = os.path.join(USER_RC_DIR, CAMERACAL_YAML)
 DFLT_CAMERACAL_YAML = pkg_resources.resource_filename(
@@ -85,6 +92,7 @@ Closed_Loop_PANEL = "Closed_Loop_PANEL"
 
 # IDs for opticflow panel controls
 Optic_Flow_Enable_CHECKBOX = "Optic_Flow_Enable_CHECKBOX"
+Optic_Flow_Save_BUTTON = "Optic_Flow_Save_BUTTON"
 Num_Row_SPINCTRL = "Num_Row_SPINCTRL"
 Num_Col_SPINCTRL = "Num_Col_SPINCTRL"
 Window_Size_SPINCTRL = "Window_Size_SPINCTRL"
@@ -99,7 +107,6 @@ CameraCal_Fx_TEXTCTRL = "CameraCal_Fx_TEXTCTRL"
 CameraCal_Fy_TEXTCTRL = "CameraCal_Fy_TEXTCTRL"
 CameraCal_Cx_TEXTCTRL = "CameraCal_Cx_TEXTCTRL"
 CameraCal_Cy_TEXTCTRL = "CameraCal_Cy_TEXTCTRL"
-CameraCal_Load_BUTTON = "CameraCal_Save_BUTTON"
 CameraCal_Save_BUTTON = "CameraCal_Save_BUTTON"
 CameraCal_Run_BUTTON = "CameraCal_Run_BUTTON"
 
@@ -113,6 +120,8 @@ Alignment_Arc2_TEXTCTRL = "Alignment_Arc2_TEXTCTRL"
 Alignment_Line1_TEXTCTRL = "Alignment_Line1_TEXTCTRL"
 Alignment_Line2_TEXTCTRL = "Alignment_Line2_TEXTCTRL"
 Alignment_Save_BUTTON = "Alignment_Save_BUTTON"
+Alignment_SelectAll_BUTTON = "Alignment_Selectall_BUTTON"
+Alignment_ClearAll_BUTTON = "Alignment_Clearall_BUTTON"
 
 # IDs for find sphere panel controls
 Find_Sphere_Image_PANEL = "Find_Sphere_Image_PANEL"
@@ -128,17 +137,32 @@ Forw_Rate_Plot_PANEL = "Forw_Rate_Plot_PANEL"
 Side_Rate_Plot_PANEL = "Side_Rate_Plot_PANEL"
 
 # Default values for optic flow panel
-OPTIC_FLOW_DEFAULTS = {
-    'opticflow_enable' : False,
+#OPTIC_FLOW_DEFAULTS = {
+#    'opticflow_enable' : False,
+#    'poll_int' : 0.02,
+#    'wnd' : 20,
+#    'num_row' :  2,
+#    'num_col' : 2,
+#    'horiz_space': 0.5,
+#    'horiz_pos' : 0.5,
+#    'vert_space' : 0.5,
+#    'vert_pos' :0.5
+#    }
+
+OPTICFLOW_DICT_NOSAVE = {
+    'optic_flow_enable' : False,
     'poll_int' : 0.02,
-    'wnd' : 20,
-    'num_row' :  2,
-    'num_col' : 2,
-    'horiz_space': 0.5,
-    'horiz_pos' : 0.5,
-    'vert_space' : 0.5,
-    'vert_pos' :0.5
     }
+
+OPTICFLOW_SAVEABLE_PARAMS = ( 
+    'wnd', 
+    'num_row', 
+    'num_col', 
+    'horiz_space', 
+    'horiz_pos', 
+    'vert_space', 
+    'vert_pos'
+    )
 
 # Defaults values for tracking panel
 TRACKING_DEFAULTS = {
@@ -202,6 +226,10 @@ class SphereTrax_Class:
         self.kalman = adskalman.KalmanFilter(A,C,Q,R,init_x,init_P)
         self.kalman_isinitial = 1
 
+        self.cameracal_popen = None
+        self.alignment_linesegs = []
+        self.buf_shape = None
+        self.buf_offset = None
 
         # Initialize GUI
         self.main_frame_init()
@@ -211,7 +239,7 @@ class SphereTrax_Class:
         self.alignment_panel_init()
         self.tracking_panel_init()
         self.closed_loop_panel_init()
-        self.cameracal_popen = None
+
 
 
     def main_frame_init(self):
@@ -239,53 +267,93 @@ class SphereTrax_Class:
         self.horiz_position_slider = xrc.XRCCTRL(self.optic_flow_panel,Horiz_Position_SLIDER)
         self.vert_space_slider = xrc.XRCCTRL(self.optic_flow_panel,Vert_Space_SLIDER)
         self.vert_position_slider = xrc.XRCCTRL(self.optic_flow_panel,Vert_Position_SLIDER)
+        self.optic_flow_save_button = xrc.XRCCTRL(self.optic_flow_panel,Optic_Flow_Save_BUTTON)
 
         # Setup events for optic flow panel controls
-        wx.EVT_CHECKBOX(self.optic_flow_enable_box, xrc.XRCID(Optic_Flow_Enable_CHECKBOX),
-                        self.on_optic_flow_enable)
-        wx.EVT_SPINCTRL(self.num_row_spin_ctrl, xrc.XRCID(Num_Row_SPINCTRL),
-                        self.on_num_row_spin_ctrl)
-        wx.EVT_SPINCTRL(self.num_col_spin_ctrl, xrc.XRCID(Num_Col_SPINCTRL),
-                        self.on_num_col_spin_ctrl)
-        wx.EVT_SPINCTRL(self.window_size_spin_ctrl, xrc.XRCID(Window_Size_SPINCTRL),
-                        self.on_window_size_spin_ctrl)
-        wx.EVT_TEXT_ENTER(self.poll_int_text_ctrl, xrc.XRCID(Poll_Interval_TEXTCTRL),
-                          self.on_poll_int_text_enter)
-        wx.EVT_SLIDER(self.horiz_space_slider, xrc.XRCID(Horiz_Space_SLIDER),
-                      self.on_horiz_space_slider)
-        wx.EVT_SLIDER(self.horiz_position_slider, xrc.XRCID(Horiz_Position_SLIDER),
-                      self.on_horiz_position_slider)
-        wx.EVT_SLIDER(self.vert_space_slider, xrc.XRCID(Vert_Space_SLIDER),
-                      self.on_vert_space_slider)
-        wx.EVT_SLIDER(self.vert_position_slider, xrc.XRCID(Vert_Position_SLIDER),
-                      self.on_vert_position_slider)
+        wx.EVT_CHECKBOX(
+                self.optic_flow_enable_box, 
+                xrc.XRCID(Optic_Flow_Enable_CHECKBOX),
+                self.on_optic_flow_enable
+                )
+        wx.EVT_SPINCTRL(
+                self.num_row_spin_ctrl, 
+                xrc.XRCID(Num_Row_SPINCTRL),
+                self.on_num_row_spin_ctrl
+                )
+        wx.EVT_SPINCTRL(
+                self.num_col_spin_ctrl, 
+                xrc.XRCID(Num_Col_SPINCTRL),
+                self.on_num_col_spin_ctrl
+                )
+        wx.EVT_SPINCTRL(
+                self.window_size_spin_ctrl, 
+                xrc.XRCID(Window_Size_SPINCTRL),
+                self.on_window_size_spin_ctrl
+                )
+        wx.EVT_TEXT_ENTER(
+                self.poll_int_text_ctrl, 
+                xrc.XRCID(Poll_Interval_TEXTCTRL),
+                self.on_poll_int_text_enter
+                )
+        wx.EVT_SLIDER(
+                self.horiz_space_slider, 
+                xrc.XRCID(Horiz_Space_SLIDER),
+                self.on_horiz_space_slider
+                )
+        wx.EVT_SLIDER(
+                self.horiz_position_slider, 
+                xrc.XRCID(Horiz_Position_SLIDER),
+                self.on_horiz_position_slider
+                )
+        wx.EVT_SLIDER(
+                self.vert_space_slider, 
+                xrc.XRCID(Vert_Space_SLIDER),
+                self.on_vert_space_slider
+                )
+        wx.EVT_SLIDER(
+                self.vert_position_slider, 
+                xrc.XRCID(Vert_Position_SLIDER),
+                self.on_vert_position_slider
+                )
+        wx.EVT_BUTTON(
+                self.optic_flow_save_button, 
+                xrc.XRCID(Optic_Flow_Save_BUTTON), 
+                self.on_optic_flow_save_button
+                )
 
         # Set default values for optic flow panel
-        self.optic_flow_enable = OPTIC_FLOW_DEFAULTS['opticflow_enable']
+        optic_flow_dict = load_yaml_params(
+                USER_OPTICFLOW_YAML,
+                DFLT_OPTICFLOW_YAML,
+                'user optic flow file'
+                )
+        optic_flow_dict.update(OPTICFLOW_DICT_NOSAVE)
+
+        self.optic_flow_enable = optic_flow_dict['optic_flow_enable']
         self.optic_flow_enable_box.SetValue(self.optic_flow_enable)
 
-        self.poll_int = OPTIC_FLOW_DEFAULTS['poll_int']
+        self.poll_int = optic_flow_dict['poll_int']
         self.poll_int_text_ctrl.SetValue(str(self.poll_int))
 
-        self.wnd = OPTIC_FLOW_DEFAULTS['wnd']
+        self.wnd = optic_flow_dict['wnd']
         self.window_size_spin_ctrl.SetValue(self.wnd)
 
-        self.num_row = OPTIC_FLOW_DEFAULTS['num_row']
+        self.num_row = optic_flow_dict['num_row']
         self.num_row_spin_ctrl.SetValue(self.num_row)
 
-        self.num_col = OPTIC_FLOW_DEFAULTS['num_col']
+        self.num_col = optic_flow_dict['num_col']
         self.num_col_spin_ctrl.SetValue(self.num_col)
 
-        self.horiz_space = OPTIC_FLOW_DEFAULTS['horiz_space']
+        self.horiz_space = optic_flow_dict['horiz_space']
         set_slider_value(self.horiz_space_slider, self.horiz_space)
 
-        self.horiz_pos = OPTIC_FLOW_DEFAULTS['horiz_pos']
+        self.horiz_pos = optic_flow_dict['horiz_pos']
         set_slider_value(self.horiz_position_slider, self.horiz_pos)
 
-        self.vert_space = OPTIC_FLOW_DEFAULTS['vert_space']
+        self.vert_space = optic_flow_dict['vert_space']
         set_slider_value(self.vert_space_slider, self.vert_space)
 
-        self.vert_pos = OPTIC_FLOW_DEFAULTS['vert_pos']
+        self.vert_pos = optic_flow_dict['vert_pos']
         set_slider_value(self.vert_position_slider, self.vert_pos)
 
 
@@ -375,7 +443,7 @@ class SphereTrax_Class:
                     )
             setattr(self, 'cameracal_{0}_textctrl'.format(name), textctrl)
 
-        button_name_list = ['load', 'save', 'run']
+        button_name_list = ['save', 'run']
         for name in button_name_list:
             button = xrc.XRCCTRL( 
                     self.cameracal_panel, 
@@ -435,8 +503,13 @@ class SphereTrax_Class:
                     )
             setattr(self,'alignment_{0}_textctrl'.format(name),textctrl)
 
-        button = xrc.XRCCTRL(self.alignment_panel, Alignment_Save_BUTTON)
-        self.alignment_save_button = button
+        button_name_list = ['save', 'selectall', 'clearall']
+        for name in button_name_list:
+            button = xrc.XRCCTRL(
+                    self.alignment_panel, 
+                    'Alignment_{0}_BUTTON'.format(name.title()),
+                    )
+            setattr(self,'alignment_{0}_button'.format(name), button);
 
         # Setup validators
         for name in control_name_list:
@@ -450,6 +523,8 @@ class SphereTrax_Class:
                 'user alignment file'
                 )
         self.alignment_panel.alignment_dict = alignment_dict
+        self.update_alignment_linesegs();
+
         for name in control_name_list:
             checkbox = getattr(self,'alignment_{0}_checkbox'.format(name))
             checkbox.SetValue(alignment_dict[name]['enabled'])
@@ -473,11 +548,11 @@ class SphereTrax_Class:
             callback = functools.partial(self.on_alignment_checkbox, name)
             wx.EVT_CHECKBOX(checkbox, xrcid, callback) 
 
-        wx.EVT_BUTTON(
-                self.alignment_save_button,  
-                xrc.XRCID('Alignment_Save_BUTTON'),
-                self.on_alignment_save_button,
-                )
+        for name in button_name_list: 
+            button = getattr(self,'alignment_{0}_button'.format(name))
+            xrcid = xrc.XRCID('Alignment_{0}_BUTTON'.format(name.title()))
+            callback = functools.partial(self.on_alignment_button, name)
+            wx.EVT_BUTTON(button,  xrcid, callback)
 
     def tracking_panel_init(self):
         """
@@ -632,6 +707,18 @@ class SphereTrax_Class:
 #        print 'vert_position_slider:', self.vert_pos
         self.lock.release()
 
+    def on_optic_flow_save_button(self,event):
+        print 'on_optic_flow_save'
+        saveables_dict = self.get_optic_flow_saveables_dict()
+        save_yaml_params(USER_OPTICFLOW_YAML,saveables_dict)
+
+    def get_optic_flow_saveables_dict(self):
+        saveables_dict = {}
+        for name in OPTICFLOW_SAVEABLE_PARAMS:
+            value = getattr(self,name)
+            saveables_dict[name] = value
+        return saveables_dict
+
     # Callbacks for find sphere page ------------------------------------------
 
     def on_sphere_radius_update(self,event):
@@ -700,6 +787,8 @@ class SphereTrax_Class:
         self.plot_panel.update_center_points([u0],[v0])
         self.lock.release()
 
+        self.update_alignment_linesegs()
+
     # Callbacks for camera calibration page -----------------------------------
     def on_cameracal_update(self,name,event):
         print 'on_cameracal_update', name
@@ -708,13 +797,13 @@ class SphereTrax_Class:
         print 'on_cameracal_button', name
         if name == 'save':
             self.save_cameracal()
-        elif name == 'load':
-            self.load_cameracal()
         elif name == 'run':
             if self.cameracal_popen is None:
                 self.run_cameracal()
             else:
                 self.kill_cameracal()
+        elif name == 'load':
+            self.load_cameracal()
 
     def load_cameracal(self): 
         cam_cal_params = ['fx', 'fy', 'cx', 'cy']
@@ -782,6 +871,7 @@ class SphereTrax_Class:
         value = textctrl.GetValue()
         value = float(value)
         self.alignment_panel.alignment_dict[name]['position'] = value
+        self.update_alignment_linesegs()
 
     def on_alignment_checkbox(self, name, event):
         """
@@ -791,11 +881,85 @@ class SphereTrax_Class:
         print 'on_alignment_checkbox', name
         value = checkbox.GetValue()
         self.alignment_panel.alignment_dict[name]['enabled'] = value
-        print  self.alignment_panel.alignment_dict
+        self.update_alignment_linesegs()
 
-    def on_alignment_save_button(self,event):
-        print 'on_alignment_save_button'
-        save_yaml_params(USER_ALIGNMENT_YAML,self.alignment_panel.alignment_dict)
+    def on_alignment_button(self, name, event):
+        print 'on_alignment_button', name
+        if name == 'save':
+            save_yaml_params(USER_ALIGNMENT_YAML,self.alignment_panel.alignment_dict)
+        elif name == 'selectall':
+            self.alignment_set_all_checkbox(True)
+        elif name == 'clearall':
+            self.alignment_set_all_checkbox(False)
+
+    def alignment_set_all_checkbox(self, check_value):
+        """
+        Set all
+        """
+        for name,value_dict in self.alignment_panel.alignment_dict.items():
+            checkbox = getattr(self,'alignment_{0}_checkbox'.format(name))
+            checkbox.SetValue(check_value)
+            self.alignment_panel.alignment_dict[name]['enabled'] = check_value
+        self.update_alignment_linesegs()
+            
+
+    def update_alignment_linesegs(self):
+        """
+        Updates list of line segments used for fly alignment.
+        """
+        self.lock.acquire()
+        buf_shape = self.buf_shape
+        buf_offset = self.buf_offset
+        self.lock.release()
+
+        alignment_linesegs = []
+        if self.plot_panel.sphere_pos is not None:
+
+            # Update arcs
+            x,y,z = self.plot_panel.sphere_pos
+            fx,fy,cx,cy = [self.cameracal_dict[n] for n in ('fx','fy','cx', 'cy')] 
+            align_dict = self.alignment_panel.alignment_dict
+            radius = self.plot_panel.radius
+
+            # Get list of radii for projected spheres used to create arcs 
+            radius_list = []
+            for k, v in align_dict.iteritems():
+                if ('arc' in k) and v['enabled']:
+                    radius_list.append(radius + v['position'])
+
+            for r in radius_list:
+                coeff_imp = sphere_finder.get_sphere_proj_bndry_ellipse(x,y,z,r,fx,fy,cx,cy)
+                coeff_par = sphere_finder.ellipse_implicit_to_parametric(coeff_imp)
+                u_list, v_list  = sphere_finder.create_ellipse_pts(*coeff_par,num_pts=100)
+                u0,v0 = u_list[0], v_list[0]
+                for u1,v1 in zip(u_list[1:],v_list[1:]):
+                    alignment_linesegs.append([u0,v0,u1,v1])
+                    u0,v0 = u1,v1
+
+            # Update vertical lines
+            if buf_shape is not None and buf_offset is not None: 
+
+                # Get list of xyz positions for drawing lines
+                xyz_pos_list = []
+                for k,v in align_dict.iteritems():
+                    if ('line' in k) and v['enabled']:
+                        offset = v['position']
+                        xyz_pos_list.append((x+offset,y,z))
+
+                # Convert xyz positions to image u coords.
+                u_list = []
+                for xyz_pos in xyz_pos_list:
+                    xx,yy,zz = xyz_pos
+                    u_list.append(fx*xyz_pos[0]/xyz_pos[2] + cx)
+
+                for u in u_list:
+                    lineseg = [u,0,u,buf_shape[1]]
+                    alignment_linesegs.append(lineseg)
+
+        self.lock.acquire()
+        self.alignment_linesegs = alignment_linesegs
+        self.lock.release()
+
 
     # Callbacks for tracking panel page  --------------------------------------
     def on_tracking_enable(self, event):
@@ -1016,6 +1180,11 @@ class SphereTrax_Class:
         # Empty pixel displacement list
         self.dpix_list = []
 
+        # Get image buffer information
+        buf = numpy.asarray(buf)
+        n,m = buf.shape
+        m_off, n_off = buf_offset
+
         # Get varibles which are shared with GUI thread
         self.lock.acquire()
         optic_flow_enable = self.optic_flow_enable
@@ -1031,12 +1200,11 @@ class SphereTrax_Class:
         cam_cal = [self.cameracal_dict[x] for x in ('fx','fy','cx', 'cy')] 
         sphere_radius = self.plot_panel.radius
         sphere_pos = self.plot_panel.sphere_pos
+        alignment_linesegs = self.alignment_linesegs
+        self.buf_shape = n,m
+        self.buf_offset = n_off, m_off
         self.lock.release()
 
-        # Get image buffer information
-        buf = numpy.asarray(buf)
-        n,m = buf.shape
-        m_off, n_off = buf_offset
 
         if not self.lag_buf.is_ready() or not optic_flow_enable:
             # Buffer is not ready or optic flow is not enabled
@@ -1122,6 +1290,10 @@ class SphereTrax_Class:
         draw_points = [(m+m_off,n+n_off) for (m,n) in self.of_pix]
         draw_linesegs = self.line_list # already corrected
         self.lag_buf.add((numpy.array(buf,copy=True), timestamp))
+
+        # Add alignemt values to line segments list
+        draw_linesegs.extend(alignment_linesegs)
+
         return draw_points, draw_linesegs
 
     def set_view_flip_LR( self, val ):
