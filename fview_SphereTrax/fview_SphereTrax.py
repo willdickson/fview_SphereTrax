@@ -38,6 +38,19 @@ try:
 except ImportError, err:
     HAVE_ROS = False
 
+HAVE_SPHERETRAX_ROS = False 
+if HAVE_ROS:
+    try:
+        roslib.load_manifest('spheretrax_ros')
+    except roslib.exceptions.ROSLibException, e:
+        print 'Unable to load spheretrax_ros manifest'
+    try:
+        from spheretrax_ros import spheretrax_publisher
+        HAVE_SPHERETRAX_ROS = True
+    except ImportError, e:
+        print 'Unable to import spheretrax_ros.spheretrax_publisher'
+
+
 RESFILE = pkg_resources.resource_filename(__name__,"fview_SphereTrax.xrc") # trigger extraction
 RES = xrc.EmptyXmlResource()
 RES.LoadFromString(open(RESFILE).read())
@@ -101,27 +114,6 @@ Horiz_Space_SLIDER = "Horiz_Space_SLIDER"
 Horiz_Position_SLIDER = "Horiz_Position_SLIDER"
 Vert_Space_SLIDER = "Vert_Space_SLIDER"
 Vert_Position_SLIDER = "Vert_Position_SLIDER"
-
-## IDs for camera calibration panel controls
-#CameraCal_Fx_TEXTCTRL = "CameraCal_Fx_TEXTCTRL"
-#CameraCal_Fy_TEXTCTRL = "CameraCal_Fy_TEXTCTRL"
-#CameraCal_Cx_TEXTCTRL = "CameraCal_Cx_TEXTCTRL"
-#CameraCal_Cy_TEXTCTRL = "CameraCal_Cy_TEXTCTRL"
-#CameraCal_Save_BUTTON = "CameraCal_Save_BUTTON"
-#CameraCal_Run_BUTTON = "CameraCal_Run_BUTTON"
-
-# IDs for alignment panel 
-#Alignment_Arc1_CHECKBOX = "Alignment_Arc1_CHECKBOX"
-#Alignment_Arc2_CHECKBOX = "Alignment_Arc2_CHECKBOX"
-#Alignment_Line1_CHECKBOX = "Alignment_Line1_CHECKBOX"
-#Alignment_Line2_CHECKBOX = "Alignment_Line2_CHECKBOX"
-#Alignment_Arc1_TEXTCTRL = "Alignment_Arc1_TEXTCTRL"
-#Alignment_Arc2_TEXTCTRL = "Alignment_Arc2_TEXTCTRL"
-#Alignment_Line1_TEXTCTRL = "Alignment_Line1_TEXTCTRL"
-#Alignment_Line2_TEXTCTRL = "Alignment_Line2_TEXTCTRL"
-#Alignment_Save_BUTTON = "Alignment_Save_BUTTON"
-#Alignment_SelectAll_BUTTON = "Alignment_Selectall_BUTTON"
-#Alignment_ClearAll_BUTTON = "Alignment_Clearall_BUTTON"
 
 # IDs for find sphere panel controls
 Find_Sphere_Image_PANEL = "Find_Sphere_Image_PANEL"
@@ -228,6 +220,8 @@ class SphereTrax_Class:
         self.tracking_panel_init()
         self.closed_loop_panel_init()
 
+        # Setup ROS publisher
+        self.ros_publisher = spheretrax_publisher.SphereTrax_Publisher()
 
 
     def main_frame_init(self):
@@ -1196,6 +1190,7 @@ class SphereTrax_Class:
         application mainloops thread. Therefore, be extremely careful
         (use threading locks) when sharing data with the rest of the class.
         """
+
         # Empty pixel displacement list
         self.dpix_list = []
 
@@ -1301,6 +1296,20 @@ class SphereTrax_Class:
                                               head_rate, forw_rate, side_rate)
                         for remote_host in self.runthread_remote_host:
                             self.sockobj.sendto(databuf, remote_host)
+
+                    # Publish spheretrax data on ROS topic
+                    if HAVE_SPHERETRAX_ROS: 
+                        data = { 
+                                'framenumber': framenumber,
+                                'timestamp': timestamp,
+                                'omega_x': omega[0],
+                                'omega_y': omega[1],
+                                'omega_z': omega[2],
+                                'head_rate': head_rate,
+                                'forw_rate': forw_rate,
+                                'side_rate': side_rate, 
+                                }
+                        self.ros_publisher.publish_data(data)
 
 
                 #Record timestamp of last optic flow calculation
