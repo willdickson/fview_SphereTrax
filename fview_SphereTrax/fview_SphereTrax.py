@@ -870,6 +870,7 @@ class SphereTrax_Class:
         button = self.cameracal_run_button.SetLabel('Run')
         if self.cameracal_popen is not None:
             self.cameracal_popen.send_signal(subprocess.signal.SIGINT)
+            self.cameracal_popen.wait()
             self.cameracal_popen = None
         # Load new camera calibration
         self.load_cameracal()
