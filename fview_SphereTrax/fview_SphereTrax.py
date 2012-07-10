@@ -221,7 +221,8 @@ class SphereTrax_Class:
         self.closed_loop_panel_init()
 
         # Setup ROS publisher
-        self.ros_publisher = spheretrax_publisher.SphereTrax_Publisher()
+	if HAVE_SPHERETRAX_ROS: 
+            self.ros_publisher = spheretrax_publisher.SphereTrax_Publisher()
 
 
     def main_frame_init(self):
@@ -944,7 +945,7 @@ class SphereTrax_Class:
             for r in radius_list:
                 coeff_imp = sphere_finder.get_sphere_proj_bndry_ellipse(x,y,z,r,fx,fy,cx,cy)
                 coeff_par = sphere_finder.ellipse_implicit_to_parametric(coeff_imp)
-                u_list, v_list  = sphere_finder.create_ellipse_pts(*coeff_par,num_pts=100)
+                u_list, v_list  = sphere_finder.create_ellipse_pts(*coeff_par,num_pts=50)
                 u0,v0 = u_list[0], v_list[0]
                 for u1,v1 in zip(u_list[1:],v_list[1:]):
                     alignment_linesegs.append([u0,v0,u1,v1])
