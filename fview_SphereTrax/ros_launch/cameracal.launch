@@ -1,0 +1,24 @@
+<launch>
+
+    <arg name="image"/>
+    <arg name="rate"/>
+    <arg name="size"/>
+    <arg name="square"/>
+
+    <!-- Image topic throttler -->
+    <node 
+        pkg="topic_tools" 
+        type="throttle" 
+        name="throttle"
+        args="messages $(arg image) $(arg rate)"
+        />
+
+    <!-- Camera calibrator node -->
+    <node 
+        pkg="spheretrax_camera_calibration" 
+        type="cameracalibrator.py" 
+        name="cameracalibrator"
+        args="--size $(arg size) --square $(arg square) --zero-tangent-dist --k-coefficients 0 image:=$(arg image)_throttle" 
+    />
+
+</launch>

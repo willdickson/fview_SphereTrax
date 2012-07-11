@@ -92,6 +92,11 @@ DFLT_SPHEREDAT_YAML = pkg_resources.resource_filename(
         os.path.join('data', SPHEREDAT_YAML)
         )
 
+CAMERACAL_LAUNCH = pkg_resources.resource_filename(
+        __name__,
+        os.path.join('ros_launch', 'cameracal.launch'),
+        )
+
 # IDs for frame, panel, notebook and subpanels
 SphereTrax_FRAME = "SphereTrax_FRAME"
 SphereTrax_PANEL = "SphereTrax_PANEL"
@@ -842,23 +847,18 @@ class SphereTrax_Class:
         topic_list = topic_list.split('\n')
         image_raw_topic = None
         for topic in topic_list:
-            if 'image_raw' in topic:
+            if topic[-9:] == 'image_raw':
                 image_raw_topic = topic
 
         # Launch camera calibrator node
         if image_raw_topic is not None:
-            cmd_list = [ 
-                    'rosrun',
-                    'spheretrax_camera_calibration',
-                    'cameracalibrator.py',
-                    '--size',
-                    str(self.cameracal_dict['size']),
-                    '--square',
-                    str(self.cameracal_dict['square']),
-                    '--zero-tangent-dist',
-                    '--k-coefficients',
-                    str(0), 
+            cmd_list = [
+                    'roslaunch',
+                    CAMERACAL_LAUNCH,
                     'image:={0}'.format(image_raw_topic),
+                    'rate:=5.0',
+                    'size:={0}'.format(self.cameracal_dict['size']),
+                    'square:={0}'.format(self.cameracal_dict['square']),
                     ]
             self.cameracal_popen = subprocess.Popen(cmd_list)
             button = self.cameracal_run_button.SetLabel('Kill')
