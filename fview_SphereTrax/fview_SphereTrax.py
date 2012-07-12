@@ -159,11 +159,19 @@ TRACKING_DEFAULTS = {
 
     }
 
+# Allowed orientations
+ORIENTATION_DICT = {
+        'front' : numpy.radians(0.0), 
+        'right' : numpy.radians(90.0),
+        'rear'  : numpy.radians(180.0), 
+        'left'  : numpy.radians(270.0), 
+        }
+
 # Sphere orientation vectors
-SPHERE_U_VEC = numpy.array([0.0,-1.0, 0.0])
-SPHERE_F_VEC = numpy.array([0.0, 0.0,1.0])
-SPHERE_S_VEC = numpy.array([1.0, 0.0, 0.0])
-SPHERE_ORIENTATION = SPHERE_U_VEC, SPHERE_F_VEC, SPHERE_S_VEC
+BASE_U_VEC = numpy.array([0.0,-1.0, 0.0])
+BASE_F_VEC = numpy.array([0.0, 0.0,1.0])
+BASE_S_VEC = numpy.array([1.0, 0.0, 0.0])
+BASE_ORIENTATION = BASE_U_VEC, BASE_F_VEC, BASE_S_VEC
 
 class SphereTrax_Class:
     def __init__(self,wx_parent):
@@ -586,9 +594,15 @@ class SphereTrax_Class:
         ID_Timer = wx.NewId()
         self.tracking_plot_timer = wx.Timer(self.wx_parent, ID_Timer)
 
-
         # Setup controls for tracking panel
         self.tracking_enable_box = xrc.XRCCTRL(self.tracking_panel,Tracking_Enable_CHECKBOX)
+        self.orientation_dict = ORIENTATION_DICT
+        self.base_orientation = BASE_ORIENTATION
+        for name in self.orientation_dict: 
+            radio_button_name = 'Orient{0}_RADIOBUTTON'.format(name.title())
+            radio_button = xrc.XRCCTRL(self.tracking_panel, radio_button_name)
+            attr_name = 'orient_{0}_radiobutton'.format(name)
+            setattr(self,attr_name,radio_button)
 
         # Setup events
         wx.EVT_CHECKBOX(self.tracking_enable_box, xrc.XRCID(Tracking_Enable_CHECKBOX),
@@ -601,6 +615,39 @@ class SphereTrax_Class:
         self.tracking_plot_interval = TRACKING_DEFAULTS['tracking_plot_poll_int']
         self.tracking_plot_timer.Start(self.tracking_plot_interval)
 
+        # Could get this from file .... maybe add later ...
+        self.orient_front_radiobutton.SetValue(True)
+
+    def get_orientation_setting(self):
+        """
+        Gets the current orientation setting.
+        """
+        for name in self.orientation_dict:
+            button = getattr(self,'orient_{0}_radiobutton'.format(name))
+            value = button.GetValue() 
+            if value:
+                return name
+        return None
+
+    def get_orientation_vectors(self):
+        """
+        Returns the set of orientation vectors based on the curruent
+        orientation setting.
+        """
+        name = self.get_orientation_setting()
+        angle = self.orientation_dict[name]
+        cs = numpy.cos(angle)
+        sn = numpy.sin(angle)
+        rmatrix = numpy.array([
+            [ cs,  0, -sn],
+            [  0,  1,   0], 
+            [ sn,  0,  cs],
+            ])
+        orient_vectors = []
+        for v in self.base_orientation:
+            v = numpy.dot(rmatrix,v)
+            orient_vectors.append(v)
+        return tuple(orient_vectors)
 
     def closed_loop_panel_init(self):
         """
@@ -1219,8 +1266,8 @@ class SphereTrax_Class:
         alignment_linesegs = self.alignment_linesegs
         self.buf_shape = n,m
         self.buf_offset = n_off, m_off
+        orient_vectors = self.get_orientation_vectors()
         self.lock.release()
-
 
         if not self.lag_buf.is_ready() or not optic_flow_enable:
             # Buffer is not ready or optic flow is not enabled
@@ -1271,10 +1318,16 @@ class SphereTrax_Class:
 
 
                     # Compute heading rate, forward and side velocities
-                    #head_rate, forw_rate, side_rate = get_hfs_rates(omega,SPHERE_ORIENTATION,
-                    #                                                sphere_radius)
-                    head_rate, forw_rate, side_rate = get_hfs_rates(omega_filt,SPHERE_ORIENTATION,
-                                                                    sphere_radius)
+                    #head_rate, forw_rate, side_rate = get_hfs_rates(
+                    #        omega_filt,
+                    #        SPHERE_ORIENTATION, 
+                    #        sphere_radius
+                    #        )
+                    head_rate, forw_rate, side_rate = get_hfs_rates(
+                            omega_filt,
+                            orient_vectors, 
+                            sphere_radius
+                            )
 
                     # TESTING ##################################################
                     if self.tracking_plot_cntr == 1:

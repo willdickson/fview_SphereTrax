@@ -750,11 +750,64 @@
                             <size>10,10</size>
                           </object>
                           <object class="sizeritem">
-                            <object class="wxCheckBox" name="Tracking_Enable_CHECKBOX">
-                              <label>enable</label>
+                            <object class="wxBoxSizer">
+                              <object class="sizeritem">
+                                <object class="wxCheckBox" name="Tracking_Enable_CHECKBOX">
+                                  <label>enable</label>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                              </object>
+                              <object class="spacer">
+                                <size>50,10</size>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxStaticText" name="Orientation_STATICTEXT">
+                                  <label>Orientation:</label>
+                                  <font>
+                                    <size>10</size>
+                                    <style>normal</style>
+                                    <weight>normal</weight>
+                                    <underlined>0</underlined>
+                                    <family>swiss</family>
+                                    <face>Sans</face>
+                                    <encoding>UTF-8</encoding>
+                                  </font>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxRadioButton" name="OrientFront_RADIOBUTTON">
+                                  <label>Front</label>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxRadioButton" name="OrientRear_RADIOBUTTON">
+                                  <label>Rear</label>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxRadioButton" name="OrientLeft_RADIOBUTTON">
+                                  <label>Left</label>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <object class="sizeritem">
+                                <object class="wxRadioButton" name="OrientRight_RADIOBUTTON">
+                                  <label>Right</label>
+                                </object>
+                                <flag>wxALL|wxALIGN_CENTRE</flag>
+                                <border>10</border>
+                              </object>
+                              <orient>wxHORIZONTAL</orient>
                             </object>
-                            <option>1</option>
-                            <flag>wxLEFT</flag>
+                            <flag>wxLEFT|wxRIGHT</flag>
+                            <border>10</border>
                           </object>
                         </object>
                         <option>1</option>
