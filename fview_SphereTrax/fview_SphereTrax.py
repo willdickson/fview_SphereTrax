@@ -31,6 +31,7 @@ import functools
 import platform
 import yaml
 import subprocess
+import atexit
 
 try:
     import roslib
@@ -44,6 +45,9 @@ if HAVE_ROS:
         roslib.load_manifest('spheretrax_ros')
     except roslib.exceptions.ROSLibException, e:
         print 'Unable to load spheretrax_ros manifest'
+
+    import rospy
+
     try:
         from spheretrax_ros import spheretrax_publisher
         HAVE_SPHERETRAX_ROS = True
@@ -232,11 +236,25 @@ class SphereTrax_Class:
         self.alignment_panel_init()
         self.tracking_panel_init()
         self.closed_loop_panel_init()
+        
+        # Check for ROS - if we have it and it isn't running start it, then start node 
+        self.roscore_popen = None 
+        atexit.register(self.cleanup)
+        if HAVE_ROS and roscore_running(): 
+            if not roscore_running(): 
+                self.roscore_popen = subprocess.Popen(['roscore'],stdout=subprocess.PIPE)
+                while not roscore_running():
+                    time.sleep(0.5)
+            rospy.init_node('fview', anonymous=True, disable_signals=True)
 
-        # Setup ROS publisher
-	if HAVE_SPHERETRAX_ROS: 
+        if HAVE_SPHERETRAX_ROS: 
             self.ros_publisher = spheretrax_publisher.SphereTrax_Publisher()
 
+    def cleanup(self):
+        # If we started roscore using popen close it.
+        if self.roscore_popen is not None:
+            self.roscore_popen.send_signal(subprocess.signal.SIGINT)
+            self.roscore_popen.wait()
 
     def main_frame_init(self):
         """
@@ -1660,6 +1678,24 @@ class LagList:
         else:
             return False
 
+
+def roscore_running(): 
+    """
+    Checks to see if ROS core is running. This is a bit kludgey as I just uses popen
+    to call the rosnode command line function. If is fails than it is assumed that 
+    ROS core isn't running.
+    """
+    devnull = open(os.devnull, 'w')
+    rosnode_popen = subprocess.Popen(
+            ['rosnode', 'list'], 
+            stdout=subprocess.PIPE, 
+            stderr=devnull
+            )
+    rsp = rosnode_popen.communicate()[0]
+    if not rsp:
+        return False
+    else:
+        return True
 
 
 
